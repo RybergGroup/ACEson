@@ -454,7 +454,7 @@ void printACE( FILE* out, struct contig_node* contigs ) {
 
 void print_read_dataJSON ( FILE* out, Read* read ) {
     if (read != NULL) {
-	fprintf(out,"{\"file_name\":\"%s\", \"n_bases\":%d, \"left_cut_off\":%d, \"right_cut_off\":%d, \"traces\":{\"n_points\":%d, \"max_val\":%u, \"base_line\":%d,\"A\":[", read->trace_name, read->NBases, read->leftCutoff, read->rightCutoff, read->info, read->NPoints, read->maxTraceVal, read->baseline);
+	fprintf(out,"{\"file_name\":\"%s\", \"n_bases\":%d, \"left_cut_off\":%d, \"right_cut_off\":%d, \"traces\":{\"n_points\":%d, \"max_val\":%u, \"base_line\":%d,\"A\":[", read->trace_name, read->NBases, read->leftCutoff, read->rightCutoff, read->NPoints, read->maxTraceVal, read->baseline);
 	for (unsigned int i=0; i < read->NPoints; ++i) {
 	    if (i!=0) fputc(',',out);
 	    fprintf(out,"%u",read->traceA[i]);
@@ -474,17 +474,23 @@ void print_read_dataJSON ( FILE* out, Read* read ) {
             if (i!=0) fputc(',',out);
             fprintf(out,"%u",read->traceT[i]);
         }
-	fputs("], \"seq\":[\"",out);
+	fputs("]}", out);
+	fputs(", \"calls\":{ \"seq\":[",out);
 	for (unsigned int i=0; i < read->NBases; ++i) {
-	    fputc(read->base[i],out);
+	    if (i!=0) fputc(',',out);
+	    fprintf(out,"\"%c\"", read->base[i], read->basePos[i], read->prob_A[i], read->prob_C[i], read->prob_G[i], read->prob_T[i]);
 	}
-	fputs("\"], \"base_pos\":[",out);
-        for (unsigned int i=0; i < read->NBases; ++i) {
-            if (i!=0) fputc(',',out);
-            fprintf(out,"%u",read->basePos[i]);
-        }
-	fputc(']', out);
-	fputc('}', out);
+	fputs("], \"trace_pos\":[",out);
+	for (unsigned int i=0; i < read->NBases; ++i) {
+	    if (i!=0) fputc(',',out);
+	    fprintf(out,"%u", read->basePos[i]);
+	}
+	fputs("], \"base_prob\":[",out);
+	for (unsigned int i=0; i < read->NBases; ++i) {
+	    if (i!=0) fputc(',',out);
+	    fprintf(out,"{\"A\":%u,\"C\":%u,\"G\":%u,\"T\":%u}", read->prob_A[i], read->prob_C[i], read->prob_G[i], read->prob_T[i]);
+	}
+	fputs("]}", out);
 	fputc('}', out);
     }
 }
@@ -497,46 +503,113 @@ void print_readJSON ( FILE* out, contig_read* read ) {
         else
             fputs("false",out);
     fprintf(out,", \"qual_begin\":%u, \"qual_end\":%u, \"align_begin\":%u, \"align_end\":%u", read->qual_begin, read->qual_end, read->align_begin, read->align_end);
-    fprintf(out,", \"seq\":\"%s\"", read->seq);
-    fprintf(out,", \"description\":\"%s\"", read->description);
     if (read->read_data !=0) {
-	fputs(", \"read_data\":", out);
+	fputs(", \"chrom\":", out);
 	print_read_dataJSON( out, read->read_data);
     }
+    else {
+	fputs(", \"seq\":[", out);
+	for (unsigned int i=0; i < read->seq_length; ++i) {
+	    if (read->seq[i] != '*') { 
+		if (i != 0)
+		    fputc(',',out);
+		fprintf(out,"\"%c\"",read->seq[i]);
+	    }
+	}
+	fputc(']', out);
+    }
+    fprintf(out,", \"description\":\"%s\"", read->description);
     fputc('}', out);
-    
 }
 
 void printJSON ( FILE* out, struct contig_node* contigs ) {
     fputs("{\"contigs\":[",out);
+    _Bool first = true;
     while (contigs != NULL) {
+	if (first)
+	    first = false;
+	else
+	    fputc(',',out);
 	fputc('{',out);
 	fprintf(out,"\"name\":\"%s\", ", contigs->data.name);
 	fprintf(out,"\"length\":%u, ", contigs->data.contig_length);
-	fprintf(out,"\"n_gaps\":%u, ", contigs->data.n_gaps);
+	//fprintf(out,"\"n_gaps\":%u, ", contigs->data.n_gaps);
 	fprintf(out,"\"n_reads\":%u, ", contigs->data.n_reads);
 	fputs("\"reverse\":",out);
 	if (contigs->data.revcomp)
 	    fputs("true, ",out);
 	else
 	    fputs("false, ",out);
-	fprintf(out,"\"sequence\":\"%s\", ", contigs->data.contig_seq);
-
-	fputs("\"qualscors\":[",out);
+	fputs("\"seq\":[", out);
 	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
-	    if (i != 0)
-		fputc(',',out);
-	    fprintf(out," %u", contigs->data.contig_qual[i]);
+	    if (contigs->data.contig_seq[i] != '*') {
+		if (i != 0)
+		    fputc(',',out);
+		fprintf(out,"\"%c\"",contigs->data.contig_seq[i]);
+	    }
 	}
-	fputs(" ], ", out);
-	fputs("\"reads\":[ ", out);
+	fputs("],\"qual\":[ ", out);
+	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
+	    if (contigs->data.contig_seq[i] != '*') {
+		if (i != 0)
+		    fputc(',',out);
+		fprintf(out,"%u", contigs->data.contig_qual[i]);
+	    }
+	}
+	fputs("],\"reads\":[ ", out);
+	int align_start = 1;
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
 	    if (i != 0)
                 fputs(", ",out);
 	    print_readJSON(out, &(contigs->data.reads[i]));
+	    if ( contigs->data.reads[i].start < align_start)
+		align_start = contigs->data.reads[i].start;;
 	}
-	fputs(" ]", out);
-	fputc('}', out);
+	fprintf(out, " ], \"alignment\":{\"contig\":{ \"start\":%i, \"gaps\":[", align_start*-1+1);
+	_Bool first_gap = true;
+	unsigned int ali_length = contigs->data.contig_length + align_start;
+	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
+	    if (contigs->data.contig_seq[i] == '*') {
+		if (!first_gap)
+		    fputc(',',out);
+		else
+		    first_gap = false;
+		fprintf(out,"{\"pos\":%u, \"qual\":[%u", i, contigs->data.contig_qual[i]);
+		unsigned int length = 1;
+		while (i+1 < contigs->data.contig_length && contigs->data.contig_seq[i+1] == '*') {
+		    ++i;
+		    ++length;
+		    fprintf(out,",%i",contigs->data.contig_qual[i]);
+		}
+		fprintf(out,"], \"length\":%u}", length);
+	    }
+	}
+	fputs("]},\"reads\":[", out);
+	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
+	    if (i != 0)
+		fputc(',',out);
+	    first_gap = true;
+	    fprintf(out, "{ \"start\":%i, \"gaps\":[", contigs->data.reads[i].start-align_start);
+	    if (contigs->data.reads[i].start-align_start + contigs->data.reads[i].seq_length > ali_length)
+		ali_length = contigs->data.reads[i].start-align_start + contigs->data.reads[i].seq_length;
+	    for (unsigned int j=0; j < contigs->data.reads[i].seq_length; ++j) {
+		if (contigs->data.reads[i].seq[j] == '*') {
+		    if (!first_gap)
+			fputc(',',out);
+		    else
+			first_gap = false;
+		    fprintf(out,"{\"pos\":%u", j);
+		    unsigned int length = 1;
+		    while (j+1 < contigs->data.contig_length && contigs->data.contig_seq[j+1] == '*') {
+			++j;
+			++length;
+		    }
+		    fprintf(out,", \"length\":%u}", length);
+		}
+	    }
+	    fputs("]}", out);
+	}
+	fprintf(out, "],\"length\":%u}}", ali_length);
 	
 	if (contigs->next != NULL)
 	    fputc(',',out);
