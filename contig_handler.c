@@ -566,21 +566,21 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 		align_start = contigs->data.reads[i].start;;
 	}
 	fprintf(out, " ], \"alignment\":{\"contig\":{ \"start\":%i, \"gaps\":[", align_start*-1+1);
-	_Bool first_gap = true;
+	unsigned int n_gap = 0;
 	unsigned int ali_length = contigs->data.contig_length + align_start;
 	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
 	    if (contigs->data.contig_seq[i] == '*') {
-		if (!first_gap)
+		if (n_gap)
 		    fputc(',',out);
-		else
-		    first_gap = false;
-		fprintf(out,"{\"pos\":%u, \"qual\":[%u", i, contigs->data.contig_qual[i]);
+		++n_gap;
+		fprintf(out,"{\"pos\":%u, \"qual\":[%u", i-n_gap, contigs->data.contig_qual[i]);
 		unsigned int length = 1;
 		while (i+1 < contigs->data.contig_length && contigs->data.contig_seq[i+1] == '*') {
 		    ++i;
 		    ++length;
 		    fprintf(out,",%i",contigs->data.contig_qual[i]);
 		}
+		n_gap += length-1;
 		fprintf(out,"], \"length\":%u}", length);
 	    }
 	}
@@ -588,22 +588,22 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
 	    if (i != 0)
 		fputc(',',out);
-	    first_gap = true;
+	    n_gap = 0;
 	    fprintf(out, "{ \"start\":%i, \"gaps\":[", contigs->data.reads[i].start-align_start);
 	    if (contigs->data.reads[i].start-align_start + contigs->data.reads[i].seq_length > ali_length)
 		ali_length = contigs->data.reads[i].start-align_start + contigs->data.reads[i].seq_length;
 	    for (unsigned int j=0; j < contigs->data.reads[i].seq_length; ++j) {
 		if (contigs->data.reads[i].seq[j] == '*') {
-		    if (!first_gap)
+		    if (n_gap)
 			fputc(',',out);
-		    else
-			first_gap = false;
-		    fprintf(out,"{\"pos\":%u", j);
+		    ++n_gap;
+		    fprintf(out,"{\"pos\":%u", j-n_gap);
 		    unsigned int length = 1;
 		    while (j+1 < contigs->data.contig_length && contigs->data.contig_seq[j+1] == '*') {
 			++j;
 			++length;
 		    }
+		    n_gap += length-1;
 		    fprintf(out,", \"length\":%u}", length);
 		}
 	    }
