@@ -82,6 +82,8 @@ void printJSON ( FILE* out, struct contig_node* contigs );
 
 void print_readJSON ( FILE* out, contig_read* read );
 
+void print_read_dataJSON ( FILE* out, Read* read );
+
 void print_seq ( FILE* out, unsigned int length, char* seq);
 
 #endif //CONTIGHEADER
