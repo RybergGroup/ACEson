@@ -155,7 +155,7 @@ struct contig_node* parsACE ( FILE* in, struct contig_node* contigs ) {
 		    }
 		    present_contig->data.contig_seq[baseNo] = '\0';
 		    if (i < length)
-			fprintf(stderr, "Sequence length overflow! %ld characters read as part of the contig sequence of %s did not fit in the given sequence length (%d)\n", length - i, present_contig->data.name, present_contig->data.contig_length);
+			fprintf(stderr, "Sequence length overflow! %d characters read as part of the contig sequence of %s did not fit in the given sequence length (%d)\n", length - i, present_contig->data.name, present_contig->data.contig_length);
 		}
 		else if (mode == 'Q') {
 		    if (baseNo < present_contig->data.contig_length - present_contig->data.n_gaps) present_contig->data.contig_qual[baseNo] = atoi(word);
@@ -362,7 +362,7 @@ void add_traces( struct contig_node* contigs ) {
 		}
 		if (mode != 'A' && filename[0] != '\0') {
 		    fprintf(stderr,"Did not find chromatogram file name, but other file name: %s.\n",filename); 
-		    unsigned int p = 0;
+		    //unsigned int p = 0;
 		    unsigned int last_dot = 0;
 		    for (unsigned int p = 0; filename[p] != '\0'; ++p) {
 			if (filename[p] == '.')
@@ -390,13 +390,15 @@ void add_traces( struct contig_node* contigs ) {
 		}
 		if (filename[0] == '\0' || access( filename, F_OK ) != 0) {
 		    fputs("No name of existing file with ab1 or abi file ending found. Trying with read name and ab1 ending.\n",stderr);
-		    if (strlen(contigs->data.reads[i].name) < WORDSIZE-4)
+		    if (strlen(contigs->data.reads[i].name) < WORDSIZE-4) {
 			strcpy(filename,contigs->data.reads[i].name);
 			strcat(filename,".ab1");
-			if ( access( filename, F_OK ) != 0 )
+			if ( access( filename, F_OK ) != 0 ) {
 			    filename[strlen(filename)-1] = 'i';
 			    if ( access( filename, F_OK ) != 0 )
 				filename[0] = '\0';
+			}
+		    }
 		}
 		if (filename[0] == '\0')
 		    fprintf(stderr,"Could not find chromatogram filename for: %s.\n", contigs->data.reads[i].name);
@@ -478,7 +480,7 @@ void print_read_dataJSON ( FILE* out, Read* read ) {
 	fputs(", \"calls\":{ \"seq\":[",out);
 	for (unsigned int i=0; i < read->NBases; ++i) {
 	    if (i!=0) fputc(',',out);
-	    fprintf(out,"\"%c\"", read->base[i], read->basePos[i], read->prob_A[i], read->prob_C[i], read->prob_G[i], read->prob_T[i]);
+	    fprintf(out,"\"%c\"", read->base[i]);// , read->basePos[i], read->prob_A[i], read->prob_C[i], read->prob_G[i], read->prob_T[i]);
 	}
 	fputs("], \"trace_pos\":[",out);
 	for (unsigned int i=0; i < read->NBases; ++i) {
