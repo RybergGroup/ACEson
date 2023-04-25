@@ -140,13 +140,14 @@ void add_gap ( struct alignment* ali, const unsigned int seq_num, const unsigned
     else {
 	struct gap_stack* present = ali->gap[seq_num];
 	struct gap_stack* prev = 0;
+	// Loop while in a position after the present gap, and not at end
 	while ( pos > present->pos && present->next !=0 ) {
 	    ali_seq_length += present->length;
 	    prev = present;
 	    present = present->next;
 	}
-	ali_seq_length += present->length;
-	if (pos < present->pos) {
+	ali_seq_length += present->length; // Why?
+	if (pos < present->pos) { // if before a gap, new gap is needed
 	    struct gap_stack* new_gap_pos = (struct gap_stack*)malloc(sizeof(struct gap_stack));
 	    new_gap_pos->pos = pos;
 	    new_gap_pos->length = length;
@@ -156,11 +157,11 @@ void add_gap ( struct alignment* ali, const unsigned int seq_num, const unsigned
 	    else
 		prev->next = new_gap_pos;
 	}
-	else if (pos == present->pos) {
+	else if (pos == present->pos) { // if in a gap extend it
 	    present->length += length;
 	    present = present->next;
 	}
-	else if (present->next !=0) {
+	else if (present->next == 0) { // if at end, add new gap at end
 	    present->next = (struct gap_stack*)malloc(sizeof(struct gap_stack));
 	    present->next->pos = pos;
 	    present->next->length = length;
@@ -183,14 +184,14 @@ void insert_gap(struct alignment* ali, const unsigned int ali_pos, const unsigne
     for (unsigned int i=0; i < ali->Nseq; ++i) {
 	if ((ali->revcomp[i] && ali_pos < ali->startPos[i]+ali->seq->rightCutoff[i]) || ali_pos < ali->startPos[i]+ali->seq->leftCutoff[i]) {
 	    ali->startPos[i] += gap_length;
-	    fprintf(stderr,"Insert %u gap at beginning", gap_length);
+	    //fprintf(stderr,"Insert %u gap at beginning", gap_length);
 	}
 	else {
 	    unsigned int pos = get_seq_pos( ali, i, ali_pos);
-	    fprintf(stderr,"%u %u %u\n", pos, ali->seq->Nbases[i]-1, gap_length);
+	    //fprintf(stderr,"%u %u %u\n", pos, ali->seq->Nbases[i]-1, gap_length);
 	    if (pos < ali->seq->Nbases[i]-1 && gap_length > 0) {
 		add_gap(ali, i, pos, gap_length);
-		fprintf(stderr,"Insert %u gap at %u (%u)", gap_length, ali_pos, pos);
+		//fprintf(stderr,"Insert %u gap at %u (%u)", gap_length, ali_pos, pos);
 	    }
 	}
     }
@@ -209,13 +210,13 @@ void move_start_pos (struct alignment* ali, const int n) {
 
 unsigned int get_seq_pos ( struct alignment* ali, const unsigned int seq_num, const unsigned int align_pos) {
     unsigned int seq_pos = align_pos - ali->startPos[seq_num];
-    fprintf(stderr,"X: %u %u %u : %u\n", align_pos, ali->startPos[seq_num], seq_pos, ali->seq->Nbases[seq_num]-ali->seq->rightCutoff[seq_num]);
+    //fprintf(stderr,"X: %u %u %u : %u\n", align_pos, ali->startPos[seq_num], seq_pos, ali->seq->Nbases[seq_num]-ali->seq->rightCutoff[seq_num]);
     struct gap_stack* present = ali->gap[seq_num];
     while (present != 0) {
         if (present->pos > seq_pos)
             break;
         else if (present->pos+present->length > seq_pos) {
-	    fprintf(stderr, "---- %u --- %u\n", present->pos+present->length, seq_pos);
+	    //fprintf(stderr, "---- %u --- %u\n", present->pos+present->length, seq_pos);
             return ali->seq->Nbases[seq_num];
 	}
         else
@@ -422,9 +423,9 @@ void revcomp (struct alignment* ali) {
 struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_two ) {
     struct score_matrix* for_score = score_matrix_alocate(ali_one->length, ali_two->length);
     struct score_matrix* rev_score = score_matrix_alocate(ali_one->length, ali_two->length);
-    for (unsigned int i=1; i < ali_one->length; ++i) {
+    for (unsigned int i=1; i < ali_one->length; ++i) { // loop over alignment pos in "seq1"
 	struct base_call one_base = get_con_base(ali_one, i);
-	for (unsigned int j=1; j < ali_two->length; ++j) {
+	for (unsigned int j=1; j < ali_two->length; ++j) { // loop over alignment pos in "seq2"
 	    int match = for_score->score[get_matrix_pos(for_score, i-1, j-1)];
 	    int gap_j = for_score->score[get_matrix_pos(for_score, i, j-1)];
 	    int gap_i = for_score->score[get_matrix_pos(for_score,i-1,j)];
@@ -434,6 +435,7 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 	    struct base_call two_base = get_con_base(ali_two, j);
 	    struct base_call two_base_rev = get_con_base(ali_two, ali_two->length-1-j);
 	    two_base_rev.base = comp_base(two_base_rev.base);
+	    // Calc prob if aligning agains each other
 	    if (one_base.base == two_base.base) {
 	     	match += one_base.prob + two_base.prob;
 	    }
@@ -446,10 +448,12 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 	    else {
 		rev_match -= (one_base.prob + two_base_rev.prob);
 	    }
+	    // Calc prob if inserting gaps
 	    gap_j -= 2*two_base.prob;
 	    gap_i -= 2*one_base.prob;
 	    rev_gap_j -= 2*two_base_rev.prob;
-	    rev_gap_j -= 2*one_base.prob;
+	    rev_gap_i -= 2*one_base.prob;
+	    // Check which option is best and set score
 	    if (match >= gap_j && match >= gap_i) {
 		for_score->score[get_matrix_pos(for_score,i,j)] = match;
 		for_score->prevOne[get_matrix_pos(for_score,i,j)] = i-1;
@@ -496,6 +500,7 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
     }
     struct score_matrix* best_score = 0;
     _Bool revcomp_two = 0;
+    // get pos in seqs for best score
     if (for_score->maxScore >= rev_score->maxScore)
 	best_score = for_score;
     else {
@@ -504,32 +509,49 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
     }
     unsigned int i = best_score->endI;
     unsigned int j = best_score->endJ;
+    // 
     while ( 1 ) {
-	fprintf(stderr, "p: %d - %d\n", i, j);
+	//fprintf(stderr, "p: %d - %d\n", i, j);
 	unsigned int next_i = best_score->prevOne[get_matrix_pos(best_score,i,j)];
 	unsigned int next_j = best_score->prevTwo[get_matrix_pos(best_score,i,j)];
-	if (next_i == i) {
-	    insert_gap(ali_one, i, 1);
-	    fprintf(stderr, "i:  %d\n", i);
+	//// DEBUG /////
+	struct base_call first = get_con_base(ali_one,i);
+    	struct base_call second;
+	if (revcomp_two) {
+	    second=get_con_base(ali_two,ali_two->length-j);
+	    second.base = comp_base(second.base);
 	}
-	if (next_j == j) {
+	else
+	    second=get_con_base(ali_two,j);
+	/////////////////
+	if (next_i == i && next_j == j) {
+	    fprintf(stderr, "Error adding gap to both seqs - i:  %d j: %d\n", i, j);
+	}
+	else if (next_i == i) {
+	    insert_gap(ali_one, i, 1);
+	    fprintf(stderr, "Gap: - - %c\n", second.base);
+	}
+	else if (next_j == j) {
 	    if (revcomp_two) {
 		insert_gap(ali_two, ali_two->length-1-j, 1);
-		fprintf(stderr, "j:  %d\n", j);
 	    }
 	    else {
 		insert_gap(ali_two, j, 1);
-		fprintf(stderr, "j:  %d\n", j);
+		//fprintf(stderr, "j:  %d\n", j);
 	    }
+	    fprintf(stderr, "Gap: %c - -\n", first.base);
+	}
+	else {
+    	    fprintf(stderr, "Match: %c - %c\n", first.base, second.base);
 	}
 	if (next_i == 0 || next_j == 0)
 	    break;
 	i = next_i;
 	j = next_j;
     }
-    fprintf(stderr, "f: %u - %u\n", i, j);
-    fprintf(stderr, "L: %u - %u\n", ali_one->length, ali_two->length);
-    fprintf(stderr, "S: %u - %u\n", ali_one->startPos[0], ali_two->startPos[0]);
+    //fprintf(stderr, "f: %u - %u\n", i, j);
+    //fprintf(stderr, "L: %u - %u\n", ali_one->length, ali_two->length);
+    //fprintf(stderr, "S: %u - %u\n", ali_one->startPos[0], ali_two->startPos[0]);
     if (j>0)
 	move_start_pos(ali_one, j);
     else if (i>0) {
@@ -538,8 +560,8 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 	else
 	    move_start_pos(ali_two, i);
     }	    
-    fprintf(stderr, "L: %ui - %u\n", ali_one->length, ali_two->length);
-    fprintf(stderr, "S: %u - %u\n", ali_one->startPos[0], ali_two->startPos[0]);
+    //fprintf(stderr, "L: %ui - %u\n", ali_one->length, ali_two->length);
+    //fprintf(stderr, "S: %u - %u\n", ali_one->startPos[0], ali_two->startPos[0]);
     if (revcomp_two)
 	revcomp(ali_two);
     fputs("Made it here.\n", stderr);
@@ -565,7 +587,7 @@ void fprint_fasta_alignment (struct alignment* ali, FILE* out ) {
 		--length;
 	}
 	j=0;
-	fprintf(stderr, "Left to print: %u\n", length);
+	//fprintf(stderr, "Left to print: %u\n", length);
 	struct gap_stack* present = ali->gap[i];
 	while (present != 0) {
 	    for (;j<=present->pos && j < ali->seq->Nbases[i]; ++j) {
@@ -580,18 +602,18 @@ void fprint_fasta_alignment (struct alignment* ali, FILE* out ) {
 	    }
 	    present = present->next;
 	}
-	fprintf(stderr, "Left to print: %u\n", length);
+	//fprintf(stderr, "Left to print: %u\n", length);
 	for (;j < ali->seq->Nbases[i]; ++j) {
 	    fputc(get_seq_base(ali,i,j),out);
 	    if (length >0)
 		--length;
 	}
-	fprintf(stderr, "Left to print: %u\n", length);
+	//fprintf(stderr, "Left to print: %u\n", length);
 	while (length > 0) {
 	    fputc('-', out);
 	    --length;
 	}
 	fputc('\n', out);
-	fprintf(stderr, "Nothing left to print: %d\n", length);
+	//fprintf(stderr, "Nothing left to print: %d\n", length);
     }
 }

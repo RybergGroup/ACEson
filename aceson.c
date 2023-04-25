@@ -79,18 +79,30 @@ int main ( int argc, char* argv[]) {
 	    else if (!strcmp(argv[i],"-A") || !strcmp(argv[i],"--align")) {
 		align = 1;
             }
+	    else if (!strcmp(argv[i],"-h") || !strcmp(argv[i],"--help")) {
+		help();
+                exit(0);
+            }
+	    else {
+		fprintf(stderr, "Do not recognize argument: %s.\n", argv[i]);
+		exit(1);
+	    }
 	}
-       	else if (filename == 0) {
+       	else if (filename == 0 && n_files==0) {
 	    filename=(char**)malloc(sizeof(char*));
 	    filename[0] = argv[i];
+	    ++n_files;
 	}
 	else {
 	    fprintf(stderr, "Do not recognize argument: %s.\n", argv[i]);
+	    exit(1);
 	}
     }
     if (align) {
+	fputs("Aligning...\n",stderr);
 	Read** read_data = (Read**)calloc(n_files,sizeof(Read*));
 	struct alignment** sequences = (struct alignment**)calloc(n_files,sizeof(struct alignment*));
+	// Read sequences
 	for (unsigned int i=0; i < n_files; ++i) {
 	    //fprintf(stderr, "Reading file: %s.\n", filename[i]);
 	    read_data[i] = read_reading(filename[i], 0);
@@ -100,6 +112,7 @@ int main ( int argc, char* argv[]) {
 	    sequences[i] = alignment_alocate(temp);
 	    //fprint_fasta_alignment(sequences[i], stderr);
 	}
+	// Align first two sequences
 	struct alignment* ali = align_pair(sequences[0], sequences[1]);
 	fprint_fasta_alignment(ali, out);
 	fprintf(stderr, "Made it.\n");
