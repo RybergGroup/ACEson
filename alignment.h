@@ -20,6 +20,7 @@ contact: martin.ryberg@ebc.uu.se
 #include <stdio.h>
 #include <stdlib.h>
 #include <io_lib/Read.h>
+#include "contig_handler.h"
 
 #ifndef ALIGNMENT
 #define ALIGNMENT
@@ -109,5 +110,6 @@ void revcomp (struct alignment* ali);
 struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_two );
 
 void fprint_fasta_alignment (struct alignment* ali, FILE* out );
-
+contig alignment_to_contig (char* name, struct alignment* ali, Read** read_data );
+//void fprint_JSON_alignment (struct alignment* ali, FILE* out );
 #endif //ALIGNMENT

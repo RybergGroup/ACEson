@@ -68,6 +68,8 @@ struct contig_node* add_contig(struct contig_node* parent);
 
 void add_traces( struct contig_node* contigs );
 
+void delete_contigs_x ( struct contig_node* node, _Bool delete_reads );
+
 void delete_contigs ( struct contig_node* node );
 
 _Bool isWhitespace ( char c );

@@ -61,6 +61,8 @@ int main ( int argc, char* argv[]) {
 			output_format = 'a';
 		    else if (!strcmp(argv[i],"fastq"))
                         output_format = 'f';
+		    else if (!strcmp(argv[i],"fasta"))
+                        output_format = 'F';
 		    else {
 			fprintf(stderr, "%s is not a recognized output format\n", argv[i]);
 			exit(1);
@@ -104,7 +106,7 @@ int main ( int argc, char* argv[]) {
 	struct alignment** sequences = (struct alignment**)calloc(n_files,sizeof(struct alignment*));
 	// Read sequences
 	for (unsigned int i=0; i < n_files; ++i) {
-	    //fprintf(stderr, "Reading file: %s.\n", filename[i]);
+	    fprintf(stderr, "Reading file: %s. ...\n", filename[i]);
 	    read_data[i] = read_reading(filename[i], 0);
 	    //fputs(read_data[i]->trace_name,stderr);
 	    struct multiple_sequences* temp = multiple_sequences_alocate(1);
@@ -114,18 +116,39 @@ int main ( int argc, char* argv[]) {
 	}
 	// Align first two sequences
 	struct alignment* ali = align_pair(sequences[0], sequences[1]);
-	fprint_fasta_alignment(ali, out);
-	fprintf(stderr, "Made it.\n");
-	if (ali)
+	//fprint_fasta_alignment(ali, out);
+	//fprintf(stderr, "Made it.\n");
+	if (output_format == 'F')
+	    fprint_fasta_alignment(ali, out);
+	else if (output_format == 'j' || output_format == 'a') {
+	    struct contig_node* contigs = (struct contig_node*)calloc(sizeof(struct contig_node),1);
+	    contigs->data = alignment_to_contig("contig1",ali,read_data);
+	    if (output_format == 'j')
+		printJSON(out, contigs);
+	    else if (output_format == 'a')
+		printACE(out, contigs);
+	    else
+		fputs("Unrecognised output format\n",stderr);
+	    fputs("Going to delete contigs\n", stderr);
+	    delete_contigs_x(contigs, 0);
+	    fputs("Deleted contig\n", stderr);
+	}
+	// Clean up
+	if (ali) {
 	    alignment_ms_dealocate(ali);
+	    fputs("Deleted ali\n", stderr);
+	}
 	for (unsigned int i=0; i < n_files; ++i) {
 	    read_deallocate(read_data[i]);
+	    fputs("Check C\n", stderr);
 	    alignment_ms_dealocate(sequences[i]);
+	    fprintf(stderr, "Deleted file and seq %u\n", i);
 	}
 	if (sequences)
 	    free(sequences);
 	if (read_data)
 	    free(read_data);
+	fputs("Freed seqs and reads\n", stderr);	
 	
     }
     else {
@@ -152,12 +175,14 @@ int main ( int argc, char* argv[]) {
 	    fclose(out);
 	}
 	else if (input_format == 'B') {
-	    if (output_format == 'j') 
+	    if (output_format == 'j') {
+		fputs("Printing iaceson\n",stderr);
 		fputs("{\"reads\":[", out);
+	    }
 	    for (unsigned int i=0; i < n_files; ++i) {
-		fputs("Printing fastq\n",stderr);
 		Read* read_data = read_reading(filename[i], 0);
 		if (output_format == 'f') {
+		    fputs("Printing fastq\n",stderr);
 		    fprintf(out,"@%s\n", read_data->trace_name);
 		    for (unsigned int i = 0; i < read_data->NBases; ++i) {
 			fputc(read_data->base[i], out);

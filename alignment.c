@@ -76,7 +76,9 @@ void alignment_dealocate ( struct alignment* ali ) {
 }
 
 void alignment_ms_dealocate ( struct alignment* ali) {
+    fputs("Check A\n", stderr);
     multiple_sequences_dealocate(ali->seq);
+    fputs("Check B\n", stderr);
     alignment_dealocate(ali);
 }
 
@@ -284,6 +286,8 @@ struct base_call get_con_base ( struct alignment* ali, const unsigned int align_
     int G=0, C=0, T=0, A=0, gap=0;
     for (unsigned int i=0; i<ali->Nseq; ++i) {
 	base = get_base_call(ali, i, align_pos);
+	if (ali->revcomp[i])
+	    base.base = comp_base(base.base);
 	if (base.base=='G' || base.base=='g')
 	    G+=base.prob;
 	else if (base.base=='C' || base.base=='c')
@@ -514,7 +518,7 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 	//fprintf(stderr, "p: %d - %d\n", i, j);
 	unsigned int next_i = best_score->prevOne[get_matrix_pos(best_score,i,j)];
 	unsigned int next_j = best_score->prevTwo[get_matrix_pos(best_score,i,j)];
-	//// DEBUG /////
+	/*/// DEBUG /////
 	struct base_call first = get_con_base(ali_one,i);
     	struct base_call second;
 	if (revcomp_two) {
@@ -523,13 +527,13 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 	}
 	else
 	    second=get_con_base(ali_two,j);
-	/////////////////
+	////////////////*/
 	if (next_i == i && next_j == j) {
 	    fprintf(stderr, "Error adding gap to both seqs - i:  %d j: %d\n", i, j);
 	}
 	else if (next_i == i) {
 	    insert_gap(ali_one, i, 1);
-	    fprintf(stderr, "Gap: - - %c\n", second.base);
+	    //fprintf(stderr, "Gap: - - %c\n", second.base);
 	}
 	else if (next_j == j) {
 	    if (revcomp_two) {
@@ -539,11 +543,11 @@ struct alignment* align_pair ( struct alignment* ali_one, struct alignment* ali_
 		insert_gap(ali_two, j, 1);
 		//fprintf(stderr, "j:  %d\n", j);
 	    }
-	    fprintf(stderr, "Gap: %c - -\n", first.base);
+	    //fprintf(stderr, "Gap: %c - -\n", first.base);
 	}
-	else {
+	/*else {
     	    fprintf(stderr, "Match: %c - %c\n", first.base, second.base);
-	}
+	}*/
 	if (next_i == 0 || next_j == 0)
 	    break;
 	i = next_i;
@@ -580,7 +584,7 @@ void fprint_fasta_alignment (struct alignment* ali, FILE* out ) {
 	fprintf(out, ">%s\n", ali->seq->name[i]);
 	unsigned int j;
 	unsigned int length = ali->length;
-	fprintf(stderr, "Alignment length: %u\n", length);
+	//fprintf(stderr, "Alignment length: %u\n", length);
 	for (j=0; j < ali->startPos[i]; ++j) {
 	    fputc('-', out);
 	    if (length >0)
@@ -616,4 +620,79 @@ void fprint_fasta_alignment (struct alignment* ali, FILE* out ) {
 	fputc('\n', out);
 	//fprintf(stderr, "Nothing left to print: %d\n", length);
     }
+}
+
+contig alignment_to_contig (char* name, struct alignment* ali, Read** read_data ) {
+    contig data;
+    data.name = (char*)malloc(sizeof(char)*(strlen(name)+1));
+    strcpy(data.name, name); //
+    unsigned int contig_length = ali->length;
+    unsigned int i=0;
+    while (i < ali->length) {
+	struct base_call nuc = get_con_base(ali,i);
+	if (nuc.base != '-')
+	    break;
+	++i;
+    }
+    unsigned int contig_start = i;
+    contig_length -= i;
+    i = 0;
+    while (i < ali->length) {
+	struct base_call nuc = get_con_base(ali,ali->length-i-1);
+	if (nuc.base != '-')
+            break;
+        ++i;
+    }
+    contig_length -= i;
+    data.contig_length = contig_length; //
+    data.contig_seq = (char*)malloc(sizeof(char)*contig_length);
+    data.contig_qual = (unsigned int*)malloc(sizeof(unsigned int)*contig_length);
+    unsigned int n_gaps;
+    for (i=0; i < contig_length; ++i) {
+	struct base_call nuc = get_con_base(ali,i+contig_start);
+	if (nuc.base == '-') {
+	    ++n_gaps;
+	    data.contig_seq[i] = '*'; //-
+	}
+	else
+	    data.contig_seq[i] = nuc.base; //-
+	data.contig_qual[i] = nuc.prob; //
+	
+    }
+    data.n_gaps = n_gaps;
+    data.revcomp = 0;
+    data.n_reads = ali->seq->Nseq;
+    data.reads = (contig_read*)calloc(data.n_reads,sizeof(contig_read));
+    for (i=0; i < ali->seq->Nseq; ++i) {
+	data.reads[i].name = (char*)malloc(sizeof(char)*(strlen(ali->seq->name[i])+1));
+	strcpy(data.reads[i].name,ali->seq->name[i]); //
+	data.reads[i].seq_length = ali->seq->Nbases[i]; //
+	data.reads[i].seq = (char*)malloc(sizeof(char)*data.reads[i].seq_length); // ali->seq.base[i]; //
+	for (unsigned int j=0; j < ali->seq->Nbases[i]; ++j) {
+	    if (ali->seq->base[i][j] == '-')
+		data.reads[i].seq[j] = '*';
+	    else
+		data.reads[i].seq[j] = ali->seq->base[i][j];
+	} //<-
+	data.reads[i].start = ali->startPos[i]-(int)contig_start+1; //
+	data.reads[i].qual_begin = ali->seq->leftCutoff[i]; //
+	data.reads[i].qual_end = ali->seq->rightCutoff[i]; //
+	data.reads[i].align_begin = ali->seq->leftCutoff[i]; //
+	data.reads[i].align_end = ali->seq->leftCutoff[i]; //
+	data.reads[i].description = NULL; //
+	data.reads[i].revcomp = ali->revcomp[i]; //
+	if (read_data) {
+	    if (!strcmp(ali->seq->name[i],read_data[i]->trace_name))
+                    data.reads[i].read_data = read_data[i];
+    	    else {
+		for ( unsigned int k=0; k < ali->seq->Nseq; ++k) {
+		    if (k != i && !strcmp(ali->seq->name[i],read_data[k]->trace_name)) {
+			data.reads[i].read_data = read_data[k];
+			break;
+		    }
+		}
+	    }
+	}
+    }
+    return data;
 }

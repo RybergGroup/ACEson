@@ -12,29 +12,51 @@ _Bool isNewlineChar ( char c ) {
     return false;
 }
 
-void delete_contigs ( struct contig_node* node ) {
+void delete_contigs_x ( struct contig_node* node, _Bool delete_reads ) {
     if (node->next !=0)
-        delete_contigs(node->next);
+        delete_contigs_x(node->next, delete_reads);
     for (unsigned int i=0; i < node->data.n_reads; ++i) {
-        if (node->data.reads[i].seq != NULL)
+        if (node->data.reads[i].seq != NULL) {
             free(node->data.reads[i].seq);
-        if (node->data.reads[i].name != NULL)
+	    node->data.reads[i].seq = NULL;
+	}
+        if (node->data.reads[i].name != NULL){
             free(node->data.reads[i].name);
-        if (node->data.reads[i].description != NULL)
+	    node->data.reads[i].name = NULL;
+	}
+        if (node->data.reads[i].description != NULL) {
             free(node->data.reads[i].description);
-        if (node->data.reads[i].read_data!= NULL)
+	    node->data.reads[i].description = NULL;
+	}
+        if (node->data.reads[i].read_data!= NULL && delete_reads) {
             read_deallocate(node->data.reads[i].read_data);
+	    node->data.reads[i].read_data = NULL;
+	}
     }
-    if (node->data.reads != NULL)
+    if (node->data.reads != NULL) {
         free(node->data.reads);
-    if (node->data.contig_seq != NULL)
+	node->data.reads = NULL;
+    }
+    if (node->data.contig_seq != NULL) {
         free(node->data.contig_seq);
-    if (node->data.contig_qual != NULL)
+	node->data.contig_seq = NULL;
+    }
+    if (node->data.contig_qual != NULL) {
         free(node->data.contig_qual);
-    if (node->data.segment != NULL)
+	node->data.contig_qual = NULL;
+    }
+    if (node->data.segment != NULL) {
 	free(node->data.segment);
-    if (node != NULL)
+	node->data.segment = NULL;
+    }
+    if (node != NULL) {
         free(node);
+	node = NULL;
+    }
+}
+
+void delete_contigs ( struct contig_node* node ) {
+    delete_contigs_x( node, 1);
 }
 
 struct contig_node* add_contig(struct contig_node* parent) {
@@ -527,7 +549,9 @@ void print_readJSON ( FILE* out, contig_read* read ) {
 void printJSON ( FILE* out, struct contig_node* contigs ) {
     fputs("{\"contigs\":[",out);
     _Bool first = true;
+    fputs("Check 1\n", stderr);
     while (contigs != NULL) {
+	fputs("Check 2\n", stderr);
 	if (first)
 	    first = false;
 	else
@@ -561,15 +585,18 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	fputs("],\"reads\":[ ", out);
 	int align_start = 1;
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
+	    fputs("Check 3\n", stderr);
 	    if (i != 0)
                 fputs(", ",out);
 	    print_readJSON(out, &(contigs->data.reads[i]));
 	    if ( contigs->data.reads[i].start < align_start)
 		align_start = contigs->data.reads[i].start;;
+	    fputs("Check 4\n", stderr);
 	}
 	fprintf(out, " ], \"alignment\":{\"contig\":{ \"start\":%i, \"gaps\":[", align_start*-1+1);
 	unsigned int n_gap = 0;
 	unsigned int ali_length = contigs->data.contig_length + align_start;
+	fputs("Check 5\n", stderr);
 	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
 	    if (contigs->data.contig_seq[i] == '*') {
 		if (n_gap)
@@ -586,6 +613,7 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 		fprintf(out,"], \"length\":%u}", length);
 	    }
 	}
+	fputs("Check 6\n", stderr);
 	fputs("]},\"reads\":[", out);
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
 	    if (i != 0)
@@ -611,6 +639,7 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	    }
 	    fputs("]}", out);
 	}
+	fputs("Check 7\n", stderr);
 	fprintf(out, "],\"length\":%u}}", ali_length);
 	
 	if (contigs->next != NULL)
@@ -618,4 +647,5 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	contigs = contigs->next;
     }
     fputs("]}\n",out);
+    fputs("Check 8\n", stderr);
 }
