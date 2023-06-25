@@ -1,8 +1,8 @@
-CC:=gcc
-ACESON:=aceson.c 
-CONTIG:=contig_handler.c
-ALIGN:=alignment.c
+CC:=g++
+ACESON:=aceson.cpp
+ALIGN:=alignment.cpp
+SEQ:=sequence.cpp
 IOLIB:=staden-read
 
 aceson: $(ACESON) $(CONTIG)
-	$(CC) $(ACESON) $(CONTIG) $(ALIGN) -Wall -l$(IOLIB) -o $@
+	$(CC) $(ACESON) $(SEQ) $(ALIGN) -Wall -l$(IOLIB) -o $@

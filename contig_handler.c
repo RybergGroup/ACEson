@@ -549,9 +549,9 @@ void print_readJSON ( FILE* out, contig_read* read ) {
 void printJSON ( FILE* out, struct contig_node* contigs ) {
     fputs("{\"contigs\":[",out);
     _Bool first = true;
-    fputs("Check 1\n", stderr);
+    //fputs("Check 1\n", stderr);
     while (contigs != NULL) {
-	fputs("Check 2\n", stderr);
+	//fputs("Check 2\n", stderr);
 	if (first)
 	    first = false;
 	else
@@ -585,18 +585,18 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	fputs("],\"reads\":[ ", out);
 	int align_start = 1;
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
-	    fputs("Check 3\n", stderr);
+	    //fputs("Check 3\n", stderr);
 	    if (i != 0)
                 fputs(", ",out);
 	    print_readJSON(out, &(contigs->data.reads[i]));
 	    if ( contigs->data.reads[i].start < align_start)
 		align_start = contigs->data.reads[i].start;;
-	    fputs("Check 4\n", stderr);
+	    //fputs("Check 4\n", stderr);
 	}
 	fprintf(out, " ], \"alignment\":{\"contig\":{ \"start\":%i, \"gaps\":[", align_start*-1+1);
 	unsigned int n_gap = 0;
 	unsigned int ali_length = contigs->data.contig_length + align_start;
-	fputs("Check 5\n", stderr);
+	//fputs("Check 5\n", stderr);
 	for (unsigned int i=0; i < contigs->data.contig_length; ++i) {
 	    if (contigs->data.contig_seq[i] == '*') {
 		if (n_gap)
@@ -613,7 +613,7 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 		fprintf(out,"], \"length\":%u}", length);
 	    }
 	}
-	fputs("Check 6\n", stderr);
+	//fputs("Check 6\n", stderr);
 	fputs("]},\"reads\":[", out);
 	for (unsigned int i=0; i < contigs->data.n_reads; ++i) {
 	    if (i != 0)
@@ -639,7 +639,7 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	    }
 	    fputs("]}", out);
 	}
-	fputs("Check 7\n", stderr);
+	//fputs("Check 7\n", stderr);
 	fprintf(out, "],\"length\":%u}}", ali_length);
 	
 	if (contigs->next != NULL)
@@ -647,5 +647,5 @@ void printJSON ( FILE* out, struct contig_node* contigs ) {
 	contigs = contigs->next;
     }
     fputs("]}\n",out);
-    fputs("Check 8\n", stderr);
+    //fputs("Check 8\n", stderr);
 }
