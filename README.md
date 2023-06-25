@@ -1,4 +1,5 @@
 # ACEson
-Program to convert an ACE (contig) file to json format.
+This is not a ready program but it can assemble two reads into a contig and output it in the aceson format (a json based format).
+The aceson format can be viewed in [ACEsonView](https://ryberggroup.github.io/phylogeneticsApps.io/apps/ACEsonView.html).
 
-Require gcc compiler and staden-read library. Compilation only tested on Debian.
+Require staden-read library. Can be compiled using g++ and make. Tested on Ubuntu.
