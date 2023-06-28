@@ -21,18 +21,19 @@ void alignment::add_gap ( const unsigned int seq_num, unsigned int ali_pos, cons
     for (pos = gaps[seq_num].begin(); pos != gaps[seq_num].end(); ++pos) {
 	//cerr << " " << pos->first << " " << pos->second << ";";
 	if (ali_pos < pos->first) {
+	    cerr << "Add gap: " << ali_pos << " " << length << endl;
 	    gaps[seq_num].emplace(pos,ali_pos,length);
 	    return;
 	}
 	else {
 	    if (ali_pos < pos->first + pos->second) {
-		//cerr << endl << "Add to existing gap" << endl;
 		pos->second += length;
+		cerr << endl << "Add to existing gap: " << pos->first << " " << pos->second << endl;
 		return;
 	    }
 	}
     }
-    //cerr << "Add gapi at end" << endl;
+    cerr << "Add gap at end: " << ali_pos << " " << length << endl;
     gaps[seq_num].emplace_back(ali_pos,length);
 }
 
@@ -269,8 +270,10 @@ void alignment::add_consensus() {
 	    if (base.first == '-' || base.first == 0x00) {
 		if (seq.empty())
 		    ++start_pos[n_seq];
-		else
-		    add_gap(seq.size()-1,n_seq);
+		else {
+		    cerr << "Add gap to concensus " << seq.size() << " " << n_seq << endl;
+		    add_gap(n_seq,seq.size(),1);
+		}
 	    }
 	    else {
 		seq.push_back(base.first);
@@ -285,21 +288,36 @@ void alignment::add_consensus() {
     }
 }
 
-void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
+void alignment::align_pair (alignment& ali_one, alignment& ali_two) {
+    n_seq = ali_one.n_sequences();
+    seqs.resize(n_seq+1,0);
+    revcomp.resize(n_seq+1);
+    start_pos.resize(n_seq+1);
+    gaps.resize(n_seq+1);
+    for (unsigned int i=0; i < n_seq; ++i) {
+	seqs[i] = ali_one.get_sequence(i);
+	revcomp[i] = ali_one.get_revcomp(i);
+	start_pos[i] = ali_one.get_start_pos(i);
+	gaps[i] = ali_one.get_gaps(i);
+    }
+    add_alignment(ali_two);
+}
+
+void alignment::add_alignment ( alignment& ali ) {
     //cerr << "In pair_align" << endl;
     //cerr << "Lengths " << ali_one.alignment_length() << " " << ali_two.alignment_length() << endl;
-    const unsigned int first_one=ali_one.get_first_call(), first_two = ali_two.get_first_call(), last_one=ali_one.get_last_call(), last_two=ali_two.get_last_call();
+    const unsigned int first_one=get_first_call(), first_two = ali.get_first_call(), last_one=get_last_call(), last_two=ali.get_last_call();
     score_matrix for_score(last_one, last_two, first_one, first_two);
     score_matrix rev_score(last_one, last_two, first_one, first_two);
-    if (!ali_one.has_consensus())
-	ali_one.add_consensus();
-    if (!ali_two.has_consensus())
-	ali_two.add_consensus();
-    unsigned int length_two = ali_two.alignment_length();
+    if (!has_consensus())
+	add_consensus();
+    if (!ali.has_consensus())
+	ali.add_consensus();
+    unsigned int length_two = ali.alignment_length();
     //cerr << "First base: " << first_one << " " << first_two << " Last: " << last_one << " " << last_two << endl;
     for (int i=first_one; i < last_one; ++i) { // loop over alignment pos in "seq1"
 	//cerr << "Seq 1 base: " << i << endl;
-	pair<char,int> one_base = ali_one.get_con_base(i);
+	pair<char,int> one_base = get_con_base(i);
 	// save in consensus?
 	for (int j=first_two; j < last_two; ++j) { // loop over alignment pos in "seq2"
 	    //cerr << "  Seq 2 base " << j << endl;
@@ -310,8 +328,8 @@ void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
 	    int rev_gap_j = rev_score.get_score(i,j-1);
 	    int rev_gap_i = rev_score.get_score(i-1,j);
 	    //cerr << "Pair align check point 1" << endl;
-	    pair<char,int> two_base = ali_two.get_con_base(j);
-	    pair<char,int> two_base_rev = ali_two.get_con_base(length_two-1-j);
+	    pair<char,int> two_base = ali.get_con_base(j);
+	    pair<char,int> two_base_rev = ali.get_con_base(length_two-1-j);
 	    two_base_rev.first = comp_base(two_base_rev.first);
 	    //cerr << "Pair align check point 2" << endl;
 	    // Calc prob if aligning agains each other
@@ -394,31 +412,25 @@ void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
     }
     // initialize new alignment
     //cerr << "Pair align check point 8" << endl;
-    if (revcomp_two)
+    //if (revcomp_two)
 	//cerr << "Revcomp two" << endl;
-    n_seq = ali_one.n_sequences()+ali_two.n_sequences();
+    unsigned int n_seq_o = n_seq;
+    if (seqs[n_seq] != 0 && seqs[n_seq] != seqs[0]) // clear any consensus seq
+	delete seqs[n_seq];
+    n_seq = n_sequences()+ali.n_sequences();
     seqs.resize(n_seq+1);
-    for (unsigned int i=0; i < ali_one.n_sequences(); ++i) {
-	seqs[i] = ali_one.get_sequence(i);
-    }
-    for (unsigned int i=0; i < ali_two.n_sequences(); ++i) {
-	seqs[i+ali_one.n_sequences()] = ali_two.get_sequence(i);
+    for (unsigned int i=0; i < ali.n_sequences(); ++i) {
+	seqs[i+n_seq_o] = ali.get_sequence(i);
     }
     revcomp.resize(n_seq+1);
-    for (unsigned int i=0; i < ali_one.n_sequences(); ++i) {
-        revcomp[i] = ali_one.get_revcomp(i);
-    }
-    for (unsigned int i=0; i < ali_two.n_sequences(); ++i) {
-        revcomp[i+ali_one.n_sequences()] = ali_two.get_revcomp(i);
+    for (unsigned int i=0; i < ali.n_sequences(); ++i) {
+        revcomp[i+n_seq_o] = ali.get_revcomp(i);
     }
     //cerr << "Pair align check point 9" << endl;
     start_pos.resize(n_seq+1);
     gaps.resize(n_seq+1);
-    for (unsigned int i=0; i < ali_one.n_sequences(); ++i) {
-        gaps[i] = ali_one.get_gaps(i);
-    }
-    for (unsigned int i=0; i < ali_two.n_sequences(); ++i) {
-        gaps[i+ali_one.n_sequences()] = ali_two.get_gaps(i);
+    for (unsigned int i=0; i < ali.n_sequences(); ++i) {
+        gaps[i+n_seq_o] = ali.get_gaps(i);
     }
     score = best_score->get_max_score();
     //cerr << "Pair align check point 10: " << score << endl;
@@ -434,16 +446,16 @@ void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
 	    break;
 	}
 	else if (next_i == i) {
-	    add_gap(i, 1, 0, ali_one.n_sequences());
-	    //cerr << "Add gap to Ali One pos: " << i << endl;
+	    add_gap(i, 1, 0, n_seq_o);
+	    cerr << "Add gap to Ali One pos: " << i << endl;
 	}
 	else if (next_j == j) {
-	    //cerr << "Add gap to Ali Two pos: " << j << endl;
+	    cerr << "Add gap to Ali Two pos: " << j << endl;
 	    /*if (revcomp_two) {
 		add_gap(length_two-1-j, 1, ali_one.n_sequences(), n_seq);
 	    }
 	    else {*/
-		add_gap(j, 1, ali_one.n_sequences(), n_seq);
+		add_gap(j, 1, n_seq_o, n_seq);
 	    //}
 	}
 	if (next_i < 0 || next_j < 0)
@@ -454,11 +466,11 @@ void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
     //cerr << "Pair align check point 11. Length one:" << get_seq_length(0) << " (" << length_gaps(0) << ") [" << start_pos[0] << "] length two " << get_seq_length(1) << " (" << length_gaps(1) << ") [" << start_pos[1] << "]" << endl;
     if (revcomp_two) {
 	unsigned int length = 0;
-	for (unsigned int i=ali_one.n_sequences(); i < n_seq; ++i) {
+	for (unsigned int i=n_seq_o; i < n_seq; ++i) {
 	    unsigned int seq_length = get_seq_length(i)+start_pos[i];
 	    if (seq_length > length) length=seq_length;
 	}
-	for (unsigned int i=ali_one.n_sequences(); i < n_seq; ++i) {
+	for (unsigned int i=n_seq_o; i < n_seq; ++i) {
 	    revcomp[i] = !revcomp[i];
 	    //cerr << "Seq " << i << " is revcomp: " << revcomp[i] << endl;
 	    start_pos[i] = length-get_seq_length(i)-start_pos[i];
@@ -466,9 +478,9 @@ void alignment::align_pair ( alignment& ali_one, alignment& ali_two ) {
     }
     //cerr << "Pair align check point 11. Length one:" << get_seq_length(0) << " (" << length_gaps(0) << ") [" << start_pos[0] << "] length two " << get_seq_length(1) << " (" << length_gaps(1) << ") [" << start_pos[1] << "]" << endl;
     if (j>i)
-	move_start_pos(j-i,0, ali_one.n_sequences());
+	move_start_pos(j-i,0, n_seq_o);
     else if (i>j) {
-	move_start_pos(i-j, ali_one.n_sequences(), n_seq);
+	move_start_pos(i-j, n_seq_o, n_seq);
     }	    
     //cerr << "Pair align check point 11. Length one:" << get_seq_length(0) << " (" << length_gaps(0) << ") [" << start_pos[0] << "] length two " << get_seq_length(1) << " (" << length_gaps(1) << ") [" << start_pos[1] << "]" << endl;
     //cerr << "N gaps: " << gaps[0].size() << " " << gaps[1].size() << endl;

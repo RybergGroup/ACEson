@@ -118,14 +118,19 @@ int main ( int argc, char* argv[]) {
 	    cerr <<  "Do not recognize argument: " << argv[i] << '.' << endl;
 	    exit(1);
 	}
-    }
+    };
     if (align) {
 	cerr << "Aligning..." << endl;
 	Read** read_data = new Read*[n_files];
 	sequence* sequences = new sequence[n_files];
-	vector<alignment> alignments;
+	//vector<alignment> alignments;
+	vector<alignment> pairwise_ali;
+	int x = 1;
+	for (int i=1; i<=n_files; ++i)
+	    x *= i;
+	pairwise_ali.reserve(x);
 	// Read sequences
-	for (unsigned int i=0; i < n_files; ++i) {
+	for (int i=0; i < n_files; ++i) {
 	    cerr << "Reading first file: " << filename[i] << endl;
 	    read_data[i] = read_reading(filename[i], 0);
 	    if (q_cut) {
@@ -156,33 +161,80 @@ int main ( int argc, char* argv[]) {
 	    }
 	    sequences[i].add_read(read_data[i]);
 	    cerr << "Prepare for alignment" << endl;
-	    alignments.emplace_back(&sequences[i]);
-	    cerr << "Prepare for alignment" << endl;
-	    cerr << "Length: " << sequences[i].length() << " (" << alignments.back().alignment_length() << ")" << " [" << alignments.front().alignment_length() << "]" << endl;
+	    if (n_files > 1) {
+		for (int j = 0; j < i; ++j) {
+		    cerr << "Aligning seq " << i << " and seq " << j << endl;
+		    alignment ali(&sequences[i],&sequences[j]);
+		    vector<alignment>::iterator present = pairwise_ali.end();
+		    while (present != pairwise_ali.begin()) {
+			vector<alignment>::iterator previous = prev(present);
+			if (previous != pairwise_ali.end() && ali.get_score() > previous->get_score())
+			    present = previous;
+			else
+			    break;
+		    }
+		    pairwise_ali.insert(present,ali);
+		    // sort by score
+		}
+	    }
+	    else
+		pairwise_ali.emplace_back(&sequences[i]);
 	}
+	// The contig should be built in the order of best scores (~NJ tree)
+	vector<alignment> contigs;
+	// Loop over alignments and check which should be added
+	for (vector<alignment>::iterator i=pairwise_ali.begin(); i != pairwise_ali.end(); ++i) {
+	    vector<alignment>::iterator first=contigs.end();
+	    vector<alignment>::iterator second=contigs.end();
+	    for (vector<alignment>::iterator j=contigs.begin(); j != contigs.end(); ++j) {
+		if (j->overlap(*i)) {
+		    if (first == contigs.end())
+			first = i;
+		    else {
+			second = i;
+			break;
+		    }
+		}
+	    }
+	    if (first != contigs.end()) {
+		if (second != contigs.end()) {
+		    first->add_alignment(*second);
+		    contigs.erase(second);
+		}
+		else {
+		    if (!first->in_alignment(second->get_sequence(0))) {
+			alignment ali(second->get_sequence(0));
+			first->add_alignment(ali);
+		    }
+		    else if (!first->in_alignment(second->get_sequence(1))) {// This check should not be nneded I think
+			alignment ali(second->get_sequence(1));
+			first->add_alignment(ali);
+		    }
+		}
+	    }
+	    else {
+		contigs.push_back(*i);
+	    }
+    	}
 	// Align first two sequences
-	cerr << "Aligning first pair..." << endl;
-	cerr << "Length " << alignments[0].alignment_length() << " " << alignments[1].alignment_length() << endl;
-	alignment ali(2);
-       	ali.align_pair(alignments[0], alignments[1]);
-	if (output_format == 'F')
-	    ali.print_alignment_fasta(*out);
+	if (output_format == 'F') {
+	    for (vector<alignment>::iterator i=contigs.begin(); i != contigs.end(); ++i) {
+		if (i != contigs.begin())
+		    *out << endl << endl;
+		i->print_alignment_fasta(*out);
+	    }
+	}
 	else if (output_format == 'j') {
+	    int n_contigs(0);
 	    *out << "{\"contigs\":[";
-	    //bool first = true;
-	    //fputs("Check 1\n", stderr);
-	    //while (contigs != NULL) {
-		//fputs("Check 2\n", stderr);
-	    //  if (first)
-	    //     first = false;
-	    //  else
-	    //      fputc(',',out);
-	    ali.set_name("contig1");
-	    ali.print_alignment_json(*out);
-	           //if (contigs->next != NULL)
-        //    fputc(',',out);
-        //contigs = contigs->next;
-    //}
+	    for (vector<alignment>::iterator i=contigs.begin(); i != contigs.end(); ++i) {
+		if (i != contigs.begin())
+		    *out << ',';
+		++n_contigs;
+		string contig_name = "contig" + to_string(n_contigs);
+		i->set_name(contig_name);
+		i->print_alignment_json(*out);
+	    }
 	    *out << "]}" << endl;
 	}
        	//else if (output_format == 'a')

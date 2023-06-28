@@ -134,15 +134,26 @@ public:
 	gaps.resize(2);
 	score = 0;
     }
+    alignment ( sequence* seq1, sequence* seq2 ) {
+        n_seq = 1;
+        seqs.resize(2,0);
+	seqs[0] = seq1;
+        revcomp.resize(2);
+        start_pos.resize(2);
+        gaps.resize(2);
+        score = 0;
+	alignment ali(seq2);
+	add_alignment(ali);
+    }
     ~alignment ( ) {
 	if (seqs[n_seq] && seqs[n_seq] != seqs[0])
 	    delete seqs[n_seq];
     }
     alignment ( const alignment& o ) {
-	cerr << "Copy alignment" << endl;
+	//cerr << "Copy alignment" << endl;
 	n_seq=o.n_seq;
 	seqs = o.seqs;
-	cerr << "Length seq 0: " << seqs.at(0)->length() << " (" << o.seqs.at(0)->length() << endl;
+	//cerr << "Length seq 0: " << seqs.at(0)->length() << " (" << o.seqs.at(0)->length() << ')' << endl;
 	revcomp = o.revcomp;
 	start_pos = o.start_pos;
 	gaps = o.gaps;
@@ -157,9 +168,24 @@ public:
     pair<char,int> get_con_base ( const unsigned int ali_pos );
     unsigned int get_first_call();
     unsigned int get_last_call();
+    unsigned int get_start_pos(unsigned int seq) { return start_pos[seq]; }
     bool get_revcomp( unsigned int seq ) { return revcomp[seq]; }
+    int get_score () { return score; }
     vector<pair<unsigned int, unsigned int>> get_gaps(unsigned int seq ) { return gaps[seq]; }
     unsigned int alignment_length ( );
+    bool overlap ( alignment& ali ) {
+	for (unsigned int i=0; i < n_seq; ++i)
+	    for (unsigned int j=0; j < ali.n_sequences(); ++j)
+		if (seqs[i] == ali.get_sequence(j))
+		    return true;
+	return false;
+    }
+    bool in_alignment( sequence* seq ) {
+	for (int i=0; i < n_seq; ++i)
+	    if (seqs[i] == seq)
+                    return true;
+        return false;
+    }
     void set_name (string ali_name) { name = ali_name; }
     void add_gap ( const unsigned int seq_num, const unsigned int ali_pos, const unsigned int length );
     void add_gap ( const unsigned int ali_pos, const unsigned int length) {
@@ -173,6 +199,7 @@ public:
     void add_consensus();
     void reverse_complement (unsigned int first_seq, unsigned int until_seq);
     void align_pair ( alignment& ali_one, alignment& ali_two );
+    void add_alignment ( alignment& ali );
     void print_alignment_fasta ( ostream& out );
     void print_alignment_json ( ostream& out );
 
